@@ -104,6 +104,10 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
   });
   expect(container.textContent).toContain("Ella Fitzgerald");
   expect(container.textContent).not.toContain("Billy Joel");
+  await act(async () => {
+    document.dispatchEvent(new Event("pointerdown"));
+  });
+  expect(container.querySelector(".artist-picker-menu")).toBeNull();
   expect(fetchFn).toHaveBeenCalledWith(
     "http://localhost:3000/api/products?type=music",
     expect.objectContaining({ method: "GET" }),

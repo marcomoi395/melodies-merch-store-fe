@@ -353,6 +353,7 @@ function Catalog({
   const [artistPickerOpen, setArtistPickerOpen] = useState(false);
   const [artistSearch, setArtistSearch] = useState("");
   const [selectedArtistIds, setSelectedArtistIds] = useState(selectedArtists);
+  const artistPickerRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState("");
   const visibleArtists = artists.filter((artist) =>
     artist.stageName.toLowerCase().includes(artistSearch.toLowerCase()),
@@ -373,6 +374,22 @@ function Catalog({
   };
   useEffect(load, [search]);
   useEffect(() => setSelectedArtistIds(selectedArtists), [search]);
+  useEffect(() => {
+    if (!artistPickerOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (!artistPickerRef.current?.contains(event.target as Node))
+        setArtistPickerOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setArtistPickerOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [artistPickerOpen]);
   useEffect(() => {
     api
       .getPage<Artist[], Meta>("/artists?limit=100")
@@ -437,7 +454,7 @@ function Catalog({
           </label>
           <div className="filter-artists">
             <span className="filter-label">NGHỆ SĨ</span>
-            <div className="artist-picker">
+            <div className="artist-picker" ref={artistPickerRef}>
               <button
                 type="button"
                 className="artist-picker-trigger"
