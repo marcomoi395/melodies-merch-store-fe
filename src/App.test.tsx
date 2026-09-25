@@ -341,3 +341,83 @@ it("refreshes the cart after same-tab storage changes", async () => {
 
   expect(container.textContent).toContain("Album One");
 });
+
+it("shows a multi-image gallery and related products on product detail", async () => {
+  window.history.replaceState({}, "", "/products/album-one");
+  window.scrollTo = vi.fn();
+  const product = {
+    id: "product-1",
+    name: "Album One",
+    slug: "album-one",
+    shortDescription: null,
+    productType: "music",
+    minPrice: 100000,
+    maxPrice: 100000,
+    mediaGallery: ["/album-front.jpg", "/album-back.jpg"],
+    artists: [{ id: "artist-1", stageName: "Artist One" }],
+    variants: [],
+    category: null,
+  };
+  const related = {
+    ...product,
+    id: "product-2",
+    name: "Album Two",
+    slug: "album-two",
+    mediaGallery: ["/album-two.jpg"],
+  };
+  const fetchFn = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ statusCode: 200, data: product }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        data: [related],
+        meta: { currentPage: 1, totalPages: 1, limit: 4, totalItems: 1 },
+      }),
+    });
+  vi.stubGlobal("fetch", fetchFn);
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => {
+    root?.render(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+
+  expect(container.querySelectorAll(".gallery-thumb")).toHaveLength(2);
+  expect(container.textContent).toContain("SẢN PHẨM LIÊN QUAN");
+  expect(container.textContent).toContain("Album Two");
+
+  await act(async () => {
+    (container.querySelectorAll(".gallery-thumb")[1] as HTMLButtonElement).click();
+  });
+  expect(
+    (container.querySelector(".gallery-main img") as HTMLImageElement).src,
+  ).toContain("/album-back.jpg");
+});
+
+it("does not expose removed category and artist pages", async () => {
+  window.history.replaceState({}, "", "/categories");
+  window.scrollTo = vi.fn();
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => {
+    root?.render(<App />);
+  });
+
+  expect(container.textContent).toContain("Không tìm thấy trang.");
+  expect(container.textContent).not.toContain("DANH MỤC");
+});

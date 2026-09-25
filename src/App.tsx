@@ -5,7 +5,6 @@ import {
   discountedPrice,
   formatMoney,
   mergeOrderItems,
-  normalizeProductMedia,
   type OrderItemInput,
 } from "./storefront";
 
@@ -73,12 +72,6 @@ type TrackedOrder = {
   shippingFee: number;
   discountAmount: number;
   totalAmount: number;
-};
-type Category = {
-  id: string;
-  name: string;
-  slug: string;
-  parentId: string | null;
 };
 type Artist = {
   id: string;
@@ -175,6 +168,38 @@ function Media({ media, name }: { media: string[]; name: string }) {
   );
 }
 
+function ProductGallery({ media, name }: { media: string[]; name: string }) {
+  const images = media.filter(Boolean);
+  const [selected, setSelected] = useState(0);
+  const active = images[selected] ? [images[selected]] : images;
+
+  useEffect(() => setSelected(0), [media]);
+
+  return (
+    <div className="product-gallery">
+      <div className="gallery-main">
+        <Media media={active} name={name} />
+      </div>
+      {images.length > 1 && (
+        <div className="gallery-thumbs" aria-label="Ảnh sản phẩm">
+          {images.map((image, index) => (
+            <button
+              key={`${image}-${index}`}
+              type="button"
+              className={`gallery-thumb${index === selected ? " selected" : ""}`}
+              aria-label={`Xem ảnh ${index + 1}`}
+              aria-pressed={index === selected}
+              onClick={() => setSelected(index)}
+            >
+              <img src={image} alt={`${name} ${index + 1}`} />
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Shell({
   children,
   navigate,
@@ -191,12 +216,6 @@ function Shell({
         <nav aria-label="Điều hướng chính">
           <Link navigate={navigate} to="/">
             CỬA HÀNG
-          </Link>
-          <Link navigate={navigate} to="/categories">
-            DANH MỤC
-          </Link>
-          <Link navigate={navigate} to="/artists">
-            NGHỆ SĨ
           </Link>
           <Link navigate={navigate} to="/track">
             TRA CỨU ĐƠN
@@ -344,7 +363,7 @@ function Catalog({
             });
           }}
         >
-          <label>
+          <label className="filter-search">
             TÌM KIẾM
             <input
               name="keyword"
@@ -352,7 +371,7 @@ function Catalog({
               placeholder="Tên sản phẩm"
             />
           </label>
-          <label>
+          <label className="filter-artists">
             NGHỆ SĨ
             <select
               name="artistId"
@@ -367,7 +386,7 @@ function Catalog({
               ))}
             </select>
           </label>
-          <label>
+          <label className="filter-price-min">
             GIÁ GỐC TỪ
             <input
               name="price_min"
@@ -376,7 +395,7 @@ function Catalog({
               defaultValue={query.get("price_min") ?? ""}
             />
           </label>
-          <label>
+          <label className="filter-price-max">
             GIÁ GỐC ĐẾN
             <input
               name="price_max"
@@ -385,7 +404,7 @@ function Catalog({
               defaultValue={query.get("price_max") ?? ""}
             />
           </label>
-          <label>
+          <label className="filter-type">
             LOẠI
             <select
               value={type}
@@ -396,7 +415,7 @@ function Catalog({
               <option value="merch">MERCH</option>
             </select>
           </label>
-          <label>
+          <label className="filter-sort">
             SẮP XẾP
             <select
               value={sort}
@@ -407,7 +426,7 @@ function Catalog({
               <option value="price_asc">GIÁ TĂNG</option>
             </select>
           </label>
-          <label className="check-control">
+          <label className="check-control filter-stock">
             <input
               name="stock_status"
               type="checkbox"
@@ -415,7 +434,7 @@ function Catalog({
             />{" "}
             CÒN HÀNG
           </label>
-          <button className="button ghost">TÌM</button>
+          <button className="button ghost filter-submit">TÌM</button>
         </form>
         {!products && !error && <Empty>Đang tải catalog...</Empty>}
         {error && (
@@ -458,197 +477,6 @@ function Catalog({
   );
 }
 
-function CategoryIndex({ navigate }: { navigate: (to: string) => void }) {
-  const [categories, setCategories] = useState<Category[] | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    api
-      .get<Category[]>("/categories")
-      .then(setCategories)
-      .catch((reason) => setError(message(reason)));
-  }, []);
-  return (
-    <section className="content-section">
-      <h1>DANH MỤC</h1>
-      {!categories && !error && <Empty>Đang tải danh mục...</Empty>}
-      {error && (
-        <>
-          <Notice error>{error}</Notice>
-          <button
-            className="button ghost"
-            onClick={() => window.location.reload()}
-          >
-            THỬ LẠI
-          </button>
-        </>
-      )}
-      {categories?.length === 0 && <Empty>Chưa có danh mục.</Empty>}
-      {categories && categories.length > 0 && (
-        <div className="link-grid">
-          {categories.map((category) => (
-            <Link
-              key={category.id}
-              navigate={navigate}
-              to={`/categories/${category.slug}`}
-              className="browse-link"
-            >
-              <strong>{category.name}</strong>
-              <small>
-                {category.parentId ? "DANH MỤC CON" : "DANH MỤC GỐC"}
-              </small>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function CategoryDetail({
-  navigate,
-  slug,
-}: {
-  navigate: (to: string) => void;
-  slug: string;
-}) {
-  const [result, setResult] = useState<{ data: Product[]; meta: Meta } | null>(
-    null,
-  );
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    Promise.all([
-      api.getProductsPage<Product, Meta>(
-        `/categories/${encodeURIComponent(slug)}`,
-      ),
-      api.get<Category[]>("/categories"),
-    ])
-      .then(([page, list]) => {
-        setResult(page);
-        setCategories(list);
-      })
-      .catch((reason) => setError(message(reason)));
-  }, [slug]);
-  const category = categories.find((item) => item.slug === slug);
-  if (error)
-    return (
-      <section className="content-section">
-        <Notice error>
-          {error.includes("Category not found")
-            ? "Không tìm thấy danh mục."
-            : error}
-        </Notice>
-        <Link navigate={navigate} to="/categories" className="button ghost">
-          VỀ DANH MỤC
-        </Link>
-      </section>
-    );
-  if (!result) return <Empty>Đang tải danh mục...</Empty>;
-  return (
-    <section className="content-section">
-      <p className="breadcrumbs">
-        <Link navigate={navigate} to="/categories">
-          DANH MỤC
-        </Link>{" "}
-        / {category?.name ?? slug}
-      </p>
-      <h1>{category?.name ?? slug}</h1>
-      {result.data.length === 0 ? (
-        <Empty>Danh mục chưa có sản phẩm.</Empty>
-      ) : (
-        <ProductGrid products={result.data} navigate={navigate} />
-      )}
-    </section>
-  );
-}
-
-function ArtistList({ navigate }: { navigate: (to: string) => void }) {
-  const [artists, setArtists] = useState<Artist[] | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    api
-      .getPage<Artist[], Meta>("/artists?limit=100")
-      .then((result) => setArtists(result.data))
-      .catch((reason) => setError(message(reason)));
-  }, []);
-  return (
-    <section className="content-section">
-      <h1>NGHỆ SĨ</h1>
-      {!artists && !error && <Empty>Đang tải nghệ sĩ...</Empty>}
-      {error && <Notice error>{error}</Notice>}
-      {artists?.length === 0 && <Empty>Chưa có nghệ sĩ.</Empty>}
-      {artists && artists.length > 0 && (
-        <div className="link-grid">
-          {artists.map((artist) => (
-            <Link
-              key={artist.id}
-              navigate={navigate}
-              to={`/artists/${artist.slug}`}
-              className="browse-link"
-            >
-              <strong>{artist.stageName}</strong>
-              <small>{artist.bio ?? "XEM CATALOG"}</small>
-            </Link>
-          ))}
-        </div>
-      )}
-    </section>
-  );
-}
-
-function ArtistDetail({
-  navigate,
-  slug,
-}: {
-  navigate: (to: string) => void;
-  slug: string;
-}) {
-  const [artist, setArtist] = useState<Artist | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    api
-      .get<Artist>(`/artists/${encodeURIComponent(slug)}`)
-      .then((value) =>
-        setArtist({
-          ...value,
-          products: value.products?.map(normalizeProductMedia),
-        }),
-      )
-      .catch((reason) => setError(message(reason)));
-  }, [slug]);
-  if (error)
-    return (
-      <section className="content-section">
-        <Notice error>
-          {error.includes("Artist not found")
-            ? "Không tìm thấy nghệ sĩ."
-            : error}
-        </Notice>
-        <Link navigate={navigate} to="/artists" className="button ghost">
-          VỀ NGHỆ SĨ
-        </Link>
-      </section>
-    );
-  if (!artist) return <Empty>Đang tải nghệ sĩ...</Empty>;
-  return (
-    <section className="content-section">
-      <p className="breadcrumbs">
-        <Link navigate={navigate} to="/artists">
-          NGHỆ SĨ
-        </Link>{" "}
-        / {artist.stageName}
-      </p>
-      <h1>{artist.stageName}</h1>
-      {artist.bio && <p className="detail-text">{artist.bio}</p>}
-      {!artist.products?.length ? (
-        <Empty>Nghệ sĩ chưa có sản phẩm.</Empty>
-      ) : (
-        <ProductGrid products={artist.products} navigate={navigate} />
-      )}
-    </section>
-  );
-}
-
 function Detail({
   navigate,
   slug,
@@ -660,14 +488,37 @@ function Detail({
   const [selectedId, setSelectedId] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [related, setRelated] = useState<Product[]>([]);
   useEffect(() => {
+    let active = true;
+    setProduct(null);
+    setRelated([]);
+    setError("");
     api
       .getProduct<Product>(`/products/${encodeURIComponent(slug)}`)
       .then((data) => {
+        if (!active) return;
         setProduct(data);
         setSelectedId("");
+        const artistIds = data.artists.map((artist) => artist.id);
+        const query = new URLSearchParams();
+        artistIds.forEach((artistId) => query.append("artistId", artistId));
+        if (!artistIds.length) query.set("type", data.productType);
+        query.set("limit", "5");
+        api
+          .getProductsPage<Product, Meta>(`/products?${query}`)
+          .then((page) => {
+            if (active)
+              setRelated(
+                page.data.filter((item) => item.id !== data.id).slice(0, 4),
+              );
+          })
+          .catch(() => active && setRelated([]));
       })
-      .catch((reason) => setError(message(reason)));
+      .catch((reason) => active && setError(message(reason)));
+    return () => {
+      active = false;
+    };
   }, [slug]);
   if (error && !product)
     return (
@@ -712,10 +563,11 @@ function Detail({
     setNotice("Đã thêm vào giỏ hàng.");
   };
   return (
-    <section className="product-detail content-section">
-      <div className="detail-media">
-        <Media media={product.mediaGallery} name={product.name} />
-      </div>
+    <>
+      <section className="product-detail content-section">
+        <div className="detail-media">
+          <ProductGallery media={product.mediaGallery} name={product.name} />
+        </div>
       <div className="detail-copy">
         <p className="eyebrow">
           {product.productType}
@@ -789,7 +641,14 @@ function Detail({
           </button>
         </div>
       </div>
-    </section>
+      </section>
+      {related.length > 0 && (
+        <section className="related-section content-section">
+          <h2>SẢN PHẨM LIÊN QUAN</h2>
+          <ProductGrid products={related} navigate={navigate} />
+        </section>
+      )}
+    </>
   );
 }
 
@@ -1226,23 +1085,6 @@ function App() {
   const { navigate, pathname, search } = useRoute();
   let page: ReactNode;
   if (pathname === "/") page = <Catalog navigate={navigate} search={search} />;
-  else if (pathname === "/categories")
-    page = <CategoryIndex navigate={navigate} />;
-  else if (pathname.startsWith("/categories/"))
-    page = (
-      <CategoryDetail
-        navigate={navigate}
-        slug={decodeURIComponent(pathname.slice(12))}
-      />
-    );
-  else if (pathname === "/artists") page = <ArtistList navigate={navigate} />;
-  else if (pathname.startsWith("/artists/"))
-    page = (
-      <ArtistDetail
-        navigate={navigate}
-        slug={decodeURIComponent(pathname.slice(9))}
-      />
-    );
   else if (pathname.startsWith("/products/"))
     page = (
       <Detail

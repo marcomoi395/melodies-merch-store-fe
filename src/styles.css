@@ -131,9 +131,32 @@ a:hover,
 }
 .catalog-controls {
   display: grid;
-  grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(130px, 1fr)) auto;
+  grid-template-columns: minmax(220px, 2fr) minmax(180px, 1.2fr) repeat(2, minmax(130px, 1fr));
   gap: 8px;
   margin-bottom: 16px;
+}
+.filter-search { grid-column: 1; }
+.filter-artists { grid-column: 2; }
+.filter-price-min { grid-column: 3; }
+.filter-price-max { grid-column: 4; }
+.filter-type { grid-column: 1; }
+.filter-sort { grid-column: 2; }
+.filter-stock {
+  display: flex;
+  align-items: center;
+  align-self: end;
+  gap: 8px;
+  min-height: 38px;
+  white-space: nowrap;
+}
+.filter-stock input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+.filter-submit {
+  grid-column: 4;
+  width: 100%;
 }
 label {
   display: grid;
@@ -292,6 +315,48 @@ a:focus-visible {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 24px;
+}
+.product-gallery {
+  display: grid;
+  width: 100%;
+  gap: 12px;
+}
+.gallery-main {
+  display: grid;
+  min-height: 400px;
+  place-items: center;
+}
+.gallery-thumbs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+  gap: 8px;
+}
+.gallery-thumb {
+  min-height: 64px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px;
+  background: #fff;
+}
+.gallery-thumb.selected,
+.gallery-thumb:hover {
+  border-color: var(--ink);
+}
+.gallery-thumb img {
+  display: block;
+  width: 100%;
+  height: 64px;
+  object-fit: contain;
+}
+.related-section {
+  padding-top: 0;
+}
+.related-section h2 {
+  margin: 0 0 16px;
+  color: var(--soft);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
 }
 .detail-copy > p {
   color: var(--muted);
@@ -587,9 +652,14 @@ legend {
   .catalog-controls {
     grid-template-columns: 1fr 1fr;
   }
-  .catalog-controls label:first-child {
+  .catalog-controls label {
+    grid-column: auto;
+  }
+  .catalog-controls .filter-search,
+  .catalog-controls .filter-artists {
     grid-column: 1 / -1;
   }
+  .filter-submit { grid-column: auto; }
   .product-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
@@ -602,6 +672,9 @@ legend {
   .checkout,
   .content-section {
     padding-top: 32px;
+  }
+  .gallery-main {
+    min-height: 260px;
   }
   .cart-item {
     grid-template-columns: 72px 1fr;
@@ -638,7 +711,8 @@ legend {
   .catalog-controls {
     grid-template-columns: 1fr;
   }
-  .catalog-controls label:first-child {
-    grid-column: auto;
-  }
+  .catalog-controls label,
+  .catalog-controls .filter-search,
+  .catalog-controls .filter-artists,
+  .filter-submit { grid-column: auto; }
 }
