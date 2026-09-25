@@ -388,6 +388,13 @@ it("shows a multi-image gallery and related products on product detail", async (
     slug: "album-two",
     mediaGallery: ["/album-two.jpg"],
   };
+  const fallbackProducts = Array.from({ length: 8 }, (_, index) => ({
+    ...related,
+    id: `product-${index + 2}`,
+    name: `Album ${index + 2}`,
+    slug: `album-${index + 2}`,
+    artists: index === 0 ? product.artists : [],
+  }));
   const fetchFn = vi
     .fn()
     .mockResolvedValueOnce({
@@ -409,8 +416,8 @@ it("shows a multi-image gallery and related products on product detail", async (
       status: 200,
       json: async () => ({
         statusCode: 200,
-        data: [related],
-        meta: { currentPage: 1, totalPages: 1, limit: 5, totalItems: 1 },
+        data: fallbackProducts,
+        meta: { currentPage: 1, totalPages: 1, limit: 20, totalItems: 8 },
       }),
     });
   vi.stubGlobal("fetch", fetchFn);
@@ -428,11 +435,24 @@ it("shows a multi-image gallery and related products on product detail", async (
 
   expect(container.querySelectorAll(".gallery-thumb")).toHaveLength(2);
   expect(container.textContent).toContain("SẢN PHẨM LIÊN QUAN");
-  expect(container.textContent).toContain("Album Two");
+  expect(container.textContent).toContain("Album 2");
+  expect(container.querySelectorAll(".related-track .product-card")).toHaveLength(8);
   expect(container.querySelector(".related-track")).not.toBeNull();
   expect(
     container.querySelector('button[aria-label="Sản phẩm tiếp theo"]'),
   ).not.toBeNull();
+  const track = container.querySelector(".related-track") as HTMLDivElement;
+  const scrollBy = vi.fn();
+  Object.defineProperty(track, "clientWidth", { value: 1000 });
+  Object.defineProperty(track, "scrollBy", { value: scrollBy });
+  await act(async () => {
+    (
+      container.querySelector(
+        'button[aria-label="Sản phẩm tiếp theo"]',
+      ) as HTMLButtonElement
+    ).click();
+  });
+  expect(scrollBy).toHaveBeenCalledWith({ left: 850, behavior: "smooth" });
 
   await act(async () => {
     (container.querySelectorAll(".gallery-thumb")[1] as HTMLButtonElement).click();

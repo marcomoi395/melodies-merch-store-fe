@@ -296,10 +296,12 @@ function RelatedCarousel({
 }) {
   const track = useRef<HTMLDivElement>(null);
   const move = (direction: number) => {
-    track.current?.scrollBy({
-      left: direction * track.current.clientWidth * 0.85,
-      behavior: "smooth",
-    });
+    const element = track.current;
+    if (!element) return;
+    const distance = direction * element.clientWidth * 0.85;
+    if (typeof element.scrollBy === "function")
+      element.scrollBy({ left: distance, behavior: "smooth" });
+    else element.scrollLeft += distance;
   };
 
   return (
@@ -613,26 +615,55 @@ function Detail({
         setProduct(data);
         setSelectedId("");
         const artistIds = data.artists.map((artist) => artist.id);
-        const query = new URLSearchParams();
-        artistIds.forEach((artistId) => query.append("artistId", artistId));
-        if (!artistIds.length) query.set("type", data.productType);
-        query.set("limit", "5");
-        api
-          .getProductsPage<Product, Meta>(`/products?${query}`)
-          .then((page) => {
-            const items = page.data.filter((item) => item.id !== data.id);
+        const artistQuery = new URLSearchParams({ limit: "20" });
+        artistIds.forEach((artistId) => artistQuery.append("artistId", artistId));
+        const typeQuery = new URLSearchParams({
+          limit: "20",
+          type: data.productType,
+        });
+        const paths = [
+          ...(artistIds.length ? [`/products?${artistQuery}`] : []),
+          `/products?${typeQuery}`,
+        ];
+        Promise.all(
+          paths.map((path) => api.getProductsPage<Product, Meta>(path)),
+        )
+          .then((pages) => {
+            const candidates = new Map<string, Product>();
+            pages.forEach((page) =>
+              page.data.forEach((item) => candidates.set(item.id, item)),
+            );
+            const artistSet = new Set(artistIds);
+            const items = [...candidates.values()]
+              .filter((item) => item.id !== data.id)
+              .sort((left, right) => {
+                const score = (item: Product) => {
+                  const sharedArtists = item.artists.filter((artist) =>
+                    artistSet.has(artist.id),
+                  ).length;
+                  const sameCategory =
+                    data.category?.slug &&
+                    item.category?.slug === data.category.slug
+                      ? 20
+                      : 0;
+                  const sameType = item.productType === data.productType ? 10 : 0;
+                  return sharedArtists * 100 + sameCategory + sameType;
+                };
+                return score(right) - score(left);
+              })
+              .slice(0, 8);
             if (items.length) {
-              if (active) setRelated(items.slice(0, 4));
+              if (active) setRelated(items);
               return;
             }
             return api
-              .getProductsPage<Product, Meta>("/products?limit=5")
+              .getProductsPage<Product, Meta>("/products?limit=20")
               .then((fallback) => {
                 if (active)
                   setRelated(
                     fallback.data
                       .filter((item) => item.id !== data.id)
-                      .slice(0, 4),
+                      .slice(0, 8),
                   );
               });
           })
