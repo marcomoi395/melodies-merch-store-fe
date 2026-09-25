@@ -18,20 +18,59 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
   window.history.replaceState({}, "", "/?type=music");
   window.scrollTo = vi.fn();
   const product = {
-    id: "product-1", name: "Album One", slug: "album-one", shortDescription: null,
-    productType: "music", minPrice: 100000, maxPrice: 100000, mediaGallery: [], artists: [],
-    variants: [{ id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3, isPreorder: false, attributes: [] }], category: null,
+    id: "product-1",
+    name: "Album One",
+    slug: "album-one",
+    shortDescription: null,
+    productType: "music",
+    minPrice: 100000,
+    maxPrice: 100000,
+    mediaGallery: [],
+    artists: [],
+    variants: [
+      {
+        id: "variant-1",
+        name: "Vinyl",
+        originalPrice: 120000,
+        discountPercent: 20,
+        stockQuantity: 3,
+        isPreorder: false,
+        attributes: [],
+      },
+    ],
+    category: null,
   };
-  const fetchFn = vi.fn().mockResolvedValueOnce({
-    ok: true,
-    status: 200,
-    json: async () => ({
-      statusCode: 200,
-      message: "Products fetched successfully",
-      data: [product],
-      meta: { currentPage: 1, totalPages: 1, limit: 20, totalItems: 1 },
-    }),
-  }).mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ statusCode: 200, message: "Product fetched", data: product }) });
+  const fetchFn = vi
+    .fn()
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        message: "Products fetched successfully",
+        data: [product],
+        meta: { currentPage: 1, totalPages: 1, limit: 20, totalItems: 1 },
+      }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        message: "Artists fetched",
+        data: [],
+        meta: { currentPage: 1, totalPages: 1, limit: 100, totalItems: 0 },
+      }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        message: "Product fetched",
+        data: product,
+      }),
+    });
   vi.stubGlobal("fetch", fetchFn);
   const { default: App } = await import("./App");
   const container = document.createElement("div");
@@ -46,17 +85,32 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
 
   expect(container.textContent).toContain("Album One");
   expect(container.textContent).toContain("SALE");
-  expect(fetchFn).toHaveBeenCalledWith("http://localhost:3000/api/products?type=music", expect.objectContaining({ method: "GET" }));
+  expect(fetchFn).toHaveBeenCalledWith(
+    "http://localhost:3000/api/products?type=music",
+    expect.objectContaining({ method: "GET" }),
+  );
 
   await act(async () => {
-    (container.querySelector('a[href="/products/album-one"]') as HTMLAnchorElement).click();
+    (
+      container.querySelector(
+        'a[href="/products/album-one"]',
+      ) as HTMLAnchorElement
+    ).click();
     await Promise.resolve();
     await Promise.resolve();
   });
 
-  const buyNow = [...container.querySelectorAll("button")].find((button) => button.textContent === "MUA NGAY") as HTMLButtonElement;
+  const buyNow = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "MUA NGAY",
+  ) as HTMLButtonElement;
   expect(buyNow.disabled).toBe(true);
-  await act(async () => { ([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Vinyl")) as HTMLButtonElement).click(); });
+  await act(async () => {
+    (
+      [...container.querySelectorAll("button")].find((button) =>
+        button.textContent?.includes("Vinyl"),
+      ) as HTMLButtonElement
+    ).click();
+  });
   expect(buyNow.disabled).toBe(false);
 });
 
@@ -64,11 +118,40 @@ it("keeps a guest item in the browser cart without redirecting after add", async
   window.history.replaceState({}, "", "/products/album-one");
   window.scrollTo = vi.fn();
   const product = {
-    id: "product-1", name: "Album One", slug: "album-one", shortDescription: null,
-    productType: "music", minPrice: 100000, maxPrice: 100000, mediaGallery: [], artists: [],
-    variants: [{ id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3, isPreorder: false, attributes: [] }], category: null,
+    id: "product-1",
+    name: "Album One",
+    slug: "album-one",
+    shortDescription: null,
+    productType: "music",
+    minPrice: 100000,
+    maxPrice: 100000,
+    mediaGallery: [],
+    artists: [],
+    variants: [
+      {
+        id: "variant-1",
+        name: "Vinyl",
+        originalPrice: 120000,
+        discountPercent: 20,
+        stockQuantity: 3,
+        isPreorder: false,
+        attributes: [],
+      },
+    ],
+    category: null,
   };
-  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ statusCode: 200, message: "Product fetched", data: product }) }));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        message: "Product fetched",
+        data: product,
+      }),
+    }),
+  );
   const { default: App } = await import("./App");
   const container = document.createElement("div");
   document.body.append(container);
@@ -79,21 +162,98 @@ it("keeps a guest item in the browser cart without redirecting after add", async
     await Promise.resolve();
     await Promise.resolve();
   });
-  const variantButton = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Vinyl")) as HTMLButtonElement;
-  const addButton = [...container.querySelectorAll("button")].find((button) => button.textContent === "THÊM GIỎ") as HTMLButtonElement;
-  await act(async () => { variantButton.click(); });
-  await act(async () => { addButton.click(); });
+  const variantButton = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent?.includes("Vinyl"),
+  ) as HTMLButtonElement;
+  const addButton = [...container.querySelectorAll("button")].find(
+    (button) => button.textContent === "THÊM GIỎ",
+  ) as HTMLButtonElement;
+  await act(async () => {
+    variantButton.click();
+  });
+  await act(async () => {
+    addButton.click();
+  });
   expect(window.location.pathname).toBe("/products/album-one");
   expect(container.textContent).toContain("Đã thêm vào giỏ hàng.");
-  await act(async () => { (container.querySelector('a[href="/cart"]') as HTMLAnchorElement).click(); });
+  await act(async () => {
+    (container.querySelector('a[href="/cart"]') as HTMLAnchorElement).click();
+  });
 
   expect(container.textContent).toContain("Album One");
   expect(container.textContent).toContain("Vinyl");
   expect(localStorage.getItem("melodies.cart")).toContain("variant-1");
 });
 
+it("tracks a guest order by email without showing private order fields", async () => {
+  window.history.replaceState({}, "", "/track");
+  window.scrollTo = vi.fn();
+  const fetchFn = vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      statusCode: 200,
+      message: "Order tracking retrieved successfully",
+      data: [
+        {
+          id: "order-1",
+          createdAt: "2026-09-25T00:00:00Z",
+          status: "PENDING",
+          trackingCode: null,
+          paymentMethod: "COD",
+          subtotal: 100,
+          shippingFee: 0,
+          discountAmount: 0,
+          totalAmount: 100,
+        },
+      ],
+    }),
+  });
+  vi.stubGlobal("fetch", fetchFn);
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => {
+    root?.render(<App />);
+  });
+  const email = container.querySelector(
+    'input[name="email"]',
+  ) as HTMLInputElement;
+  email.value = "guest@example.com";
+  await act(async () => {
+    (container.querySelector("form") as HTMLFormElement).requestSubmit();
+    await Promise.resolve();
+  });
+
+  expect(fetchFn).toHaveBeenCalledWith(
+    "http://localhost:3000/api/order/track",
+    expect.objectContaining({
+      body: JSON.stringify({ email: "guest@example.com" }),
+    }),
+  );
+  expect(container.textContent).toContain("order-1");
+  expect(container.textContent).not.toContain("guest@example.com");
+});
+
 it("loads the persisted cart on a direct cart URL", async () => {
-  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
+  localStorage.setItem(
+    "melodies.cart",
+    JSON.stringify([
+      {
+        product: { id: "product-1", name: "Album One", mediaGallery: [] },
+        variant: {
+          id: "variant-1",
+          name: "Vinyl",
+          originalPrice: 120000,
+          discountPercent: 20,
+          stockQuantity: 3,
+        },
+        quantity: 1,
+      },
+    ]),
+  );
   window.history.replaceState({}, "", "/cart");
   window.scrollTo = vi.fn();
   const { default: App } = await import("./App");
@@ -118,11 +278,31 @@ it("refreshes an already-open cart when another tab adds an item", async () => {
   document.body.append(container);
   root = createRoot(container);
 
-  await act(async () => { root?.render(<App />); await Promise.resolve(); });
+  await act(async () => {
+    root?.render(<App />);
+    await Promise.resolve();
+  });
   expect(container.textContent).toContain("Giỏ hàng đang trống.");
 
-  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
-  await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "melodies.cart" })); });
+  localStorage.setItem(
+    "melodies.cart",
+    JSON.stringify([
+      {
+        product: { id: "product-1", name: "Album One", mediaGallery: [] },
+        variant: {
+          id: "variant-1",
+          name: "Vinyl",
+          originalPrice: 120000,
+          discountPercent: 20,
+          stockQuantity: 3,
+        },
+        quantity: 1,
+      },
+    ]),
+  );
+  await act(async () => {
+    window.dispatchEvent(new StorageEvent("storage", { key: "melodies.cart" }));
+  });
 
   expect(container.textContent).toContain("Album One");
 });
@@ -134,10 +314,30 @@ it("refreshes the cart after same-tab storage changes", async () => {
   const container = document.createElement("div");
   document.body.append(container);
   root = createRoot(container);
-  await act(async () => { root?.render(<App />); await Promise.resolve(); });
+  await act(async () => {
+    root?.render(<App />);
+    await Promise.resolve();
+  });
 
-  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
-  await act(async () => { window.dispatchEvent(new Event("focus")); });
+  localStorage.setItem(
+    "melodies.cart",
+    JSON.stringify([
+      {
+        product: { id: "product-1", name: "Album One", mediaGallery: [] },
+        variant: {
+          id: "variant-1",
+          name: "Vinyl",
+          originalPrice: 120000,
+          discountPercent: 20,
+          stockQuantity: 3,
+        },
+        quantity: 1,
+      },
+    ]),
+  );
+  await act(async () => {
+    window.dispatchEvent(new Event("focus"));
+  });
 
   expect(container.textContent).toContain("Album One");
 });
