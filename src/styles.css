@@ -420,12 +420,48 @@ a:focus-visible {
 .related-section {
   padding-top: 0;
 }
-.related-section h2 {
-  margin: 0 0 16px;
+.related-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+.related-heading h2 {
+  margin: 0;
   color: var(--soft);
   font-size: 20px;
   font-weight: 500;
   letter-spacing: 0.14em;
+}
+.related-controls {
+  display: flex;
+  gap: 8px;
+}
+.carousel-button {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--ink);
+  font-size: 16px;
+}
+.carousel-button:hover {
+  border-color: var(--ink);
+}
+.related-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: var(--line-strong) transparent;
+}
+.related-track > .product-card {
+  flex: 0 0 calc((100% - 36px) / 4);
+  scroll-snap-align: start;
 }
 .detail-copy > p {
   color: var(--muted);
@@ -689,6 +725,9 @@ legend {
   .detail-media {
     min-height: 360px;
   }
+  .related-track > .product-card {
+    flex-basis: calc((100% - 24px) / 3);
+  }
   .link-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -745,6 +784,9 @@ legend {
   .gallery-main {
     min-height: 260px;
   }
+  .related-track > .product-card {
+    flex-basis: calc((100% - 8px) / 2);
+  }
   .cart-item {
     grid-template-columns: 72px 1fr;
   }
@@ -784,4 +826,7 @@ legend {
   .catalog-controls .filter-search,
   .catalog-controls .filter-artists,
   .filter-submit { grid-column: auto; }
+  .related-track > .product-card {
+    flex-basis: 100%;
+  }
 }

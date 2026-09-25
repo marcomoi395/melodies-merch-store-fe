@@ -1,4 +1,11 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { api, ApiError } from "./api";
 import {
   browserCart,
@@ -280,6 +287,53 @@ function ProductGrid({
   );
 }
 
+function RelatedCarousel({
+  products,
+  navigate,
+}: {
+  products: Product[];
+  navigate: (to: string) => void;
+}) {
+  const track = useRef<HTMLDivElement>(null);
+  const move = (direction: number) => {
+    track.current?.scrollBy({
+      left: direction * track.current.clientWidth * 0.85,
+      behavior: "smooth",
+    });
+  };
+
+  return (
+    <div className="related-carousel">
+      <div className="related-heading">
+        <h2>SẢN PHẨM LIÊN QUAN</h2>
+        <div className="related-controls">
+          <button
+            type="button"
+            className="carousel-button"
+            aria-label="Sản phẩm trước"
+            onClick={() => move(-1)}
+          >
+            ←
+          </button>
+          <button
+            type="button"
+            className="carousel-button"
+            aria-label="Sản phẩm tiếp theo"
+            onClick={() => move(1)}
+          >
+            →
+          </button>
+        </div>
+      </div>
+      <div className="related-track" ref={track}>
+        {products.map((product) => (
+          <ProductCard key={product.id} product={product} navigate={navigate} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Catalog({
   navigate,
   search,
@@ -549,10 +603,21 @@ function Detail({
         api
           .getProductsPage<Product, Meta>(`/products?${query}`)
           .then((page) => {
-            if (active)
-              setRelated(
-                page.data.filter((item) => item.id !== data.id).slice(0, 4),
-              );
+            const items = page.data.filter((item) => item.id !== data.id);
+            if (items.length) {
+              if (active) setRelated(items.slice(0, 4));
+              return;
+            }
+            return api
+              .getProductsPage<Product, Meta>("/products?limit=5")
+              .then((fallback) => {
+                if (active)
+                  setRelated(
+                    fallback.data
+                      .filter((item) => item.id !== data.id)
+                      .slice(0, 4),
+                  );
+              });
           })
           .catch(() => active && setRelated([]));
       })
@@ -685,8 +750,7 @@ function Detail({
       </section>
       {related.length > 0 && (
         <section className="related-section content-section">
-          <h2>SẢN PHẨM LIÊN QUAN</h2>
-          <ProductGrid products={related} navigate={navigate} />
+          <RelatedCarousel products={related} navigate={navigate} />
         </section>
       )}
     </>

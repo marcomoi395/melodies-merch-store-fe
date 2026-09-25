@@ -396,8 +396,17 @@ it("shows a multi-image gallery and related products on product detail", async (
       status: 200,
       json: async () => ({
         statusCode: 200,
+        data: [],
+        meta: { currentPage: 1, totalPages: 1, limit: 5, totalItems: 0 },
+      }),
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
         data: [related],
-        meta: { currentPage: 1, totalPages: 1, limit: 4, totalItems: 1 },
+        meta: { currentPage: 1, totalPages: 1, limit: 5, totalItems: 1 },
       }),
     });
   vi.stubGlobal("fetch", fetchFn);
@@ -416,6 +425,10 @@ it("shows a multi-image gallery and related products on product detail", async (
   expect(container.querySelectorAll(".gallery-thumb")).toHaveLength(2);
   expect(container.textContent).toContain("SẢN PHẨM LIÊN QUAN");
   expect(container.textContent).toContain("Album Two");
+  expect(container.querySelector(".related-track")).not.toBeNull();
+  expect(
+    container.querySelector('button[aria-label="Sản phẩm tiếp theo"]'),
+  ).not.toBeNull();
 
   await act(async () => {
     (container.querySelectorAll(".gallery-thumb")[1] as HTMLButtonElement).click();
