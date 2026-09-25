@@ -529,6 +529,35 @@ legend {
 .action-row {
   gap: 8px;
 }
+.detail-quantity {
+  display: grid;
+  width: fit-content;
+  gap: 8px;
+  margin: 20px 0;
+}
+.detail-quantity-controls {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+.detail-quantity-controls button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  background: #fff;
+  color: var(--ink);
+  font-size: 18px;
+}
+.detail-quantity-controls output {
+  min-width: 36px;
+  color: var(--ink);
+  text-align: center;
+}
+.detail-quantity small {
+  color: var(--muted);
+  font-size: 10px;
+}
 
 .auth-panel {
   width: min(100%, 440px);

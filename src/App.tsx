@@ -600,6 +600,7 @@ function Detail({
 }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedId, setSelectedId] = useState("");
+  const [quantity, setQuantity] = useState(1);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [related, setRelated] = useState<Product[]>([]);
@@ -614,6 +615,7 @@ function Detail({
         if (!active) return;
         setProduct(data);
         setSelectedId("");
+        setQuantity(1);
         const artistIds = data.artists.map((artist) => artist.id);
         const artistQuery = new URLSearchParams({ limit: "20" });
         artistIds.forEach((artistId) => artistQuery.append("artistId", artistId));
@@ -692,12 +694,13 @@ function Detail({
     (variant) => variant.id === selectedId,
   );
   const inStock = Boolean(selected && selected.stockQuantity > 0);
+  const maxQuantity = selected ? Math.min(4, selected.stockQuantity) : 0;
   const add = () => {
     if (!selected) return;
     const quantityInCart =
       browserCart.read().find((item) => item.variant.id === selected.id)
         ?.quantity ?? 0;
-    if (quantityInCart >= selected.stockQuantity)
+    if (quantityInCart + quantity > selected.stockQuantity)
       return setError("Số lượng trong giỏ đã đạt tồn kho hiện có.");
     browserCart.add({
       product: {
@@ -712,7 +715,7 @@ function Detail({
         discountPercent: selected.discountPercent,
         stockQuantity: selected.stockQuantity,
       },
-    });
+    }, quantity);
     setError("");
     setNotice("Đã thêm vào giỏ hàng.");
   };
@@ -736,7 +739,10 @@ function Detail({
               <button
                 key={variant.id}
                 className={`variant${variant.id === selectedId ? " selected" : ""}`}
-                onClick={() => setSelectedId(variant.id)}
+                onClick={() => {
+                  setSelectedId(variant.id);
+                  setQuantity(1);
+                }}
               >
                 <strong>{variant.name}</strong>
                 <span>
@@ -779,6 +785,33 @@ function Detail({
         )}
         {error && <Notice error>{error}</Notice>}
         {notice && <Notice>{notice}</Notice>}
+        {selected && (
+          <div className="detail-quantity">
+            <span className="eyebrow">SỐ LƯỢNG</span>
+            <div className="detail-quantity-controls">
+              <button
+                type="button"
+                aria-label="Giảm số lượng"
+                disabled={quantity <= 1}
+                onClick={() => setQuantity((value) => Math.max(1, value - 1))}
+              >
+                −
+              </button>
+              <output aria-live="polite">{quantity}</output>
+              <button
+                type="button"
+                aria-label="Tăng số lượng"
+                disabled={quantity >= maxQuantity}
+                onClick={() =>
+                  setQuantity((value) => Math.min(maxQuantity, value + 1))
+                }
+              >
+                +
+              </button>
+            </div>
+            <small>Tối đa 4 sản phẩm mỗi lần thêm</small>
+          </div>
+        )}
         <div className="action-row">
           <button className="button ghost" disabled={!inStock} onClick={add}>
             THÊM GIỎ
@@ -788,7 +821,7 @@ function Detail({
             disabled={!inStock}
             onClick={() =>
               selected &&
-              navigate(`/checkout?variant=${selected.id}&quantity=1`)
+              navigate(`/checkout?variant=${selected.id}&quantity=${quantity}`)
             }
           >
             MUA NGAY

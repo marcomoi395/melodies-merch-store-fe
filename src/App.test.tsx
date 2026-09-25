@@ -156,7 +156,7 @@ it("keeps a guest item in the browser cart without redirecting after add", async
         name: "Vinyl",
         originalPrice: 120000,
         discountPercent: 20,
-        stockQuantity: 3,
+        stockQuantity: 10,
         isPreorder: false,
         attributes: [],
       },
@@ -195,6 +195,13 @@ it("keeps a guest item in the browser cart without redirecting after add", async
     variantButton.click();
   });
   await act(async () => {
+    const increase = container.querySelector(
+      'button[aria-label="Tăng số lượng"]',
+    ) as HTMLButtonElement;
+    for (let index = 0; index < 5; index += 1) increase.click();
+  });
+  expect(container.querySelector(".detail-quantity output")?.textContent).toBe("4");
+  await act(async () => {
     addButton.click();
   });
   expect(window.location.pathname).toBe("/products/album-one");
@@ -205,7 +212,7 @@ it("keeps a guest item in the browser cart without redirecting after add", async
 
   expect(container.textContent).toContain("Album One");
   expect(container.textContent).toContain("Vinyl");
-  expect(localStorage.getItem("melodies.cart")).toContain("variant-1");
+  expect(JSON.parse(localStorage.getItem("melodies.cart") ?? "[]")[0].quantity).toBe(4);
 });
 
 it("tracks a guest order by email without showing private order fields", async () => {

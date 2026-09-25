@@ -110,11 +110,11 @@ function writeBrowserCart(items: BrowserCartItem[]) {
 
 export const browserCart = {
   read: readBrowserCart,
-  add(item: Omit<BrowserCartItem, "quantity">) {
+  add(item: Omit<BrowserCartItem, "quantity">, quantity = 1) {
     const items = readBrowserCart();
     const existing = items.find((candidate) => candidate.variant.id === item.variant.id);
-    if (existing) existing.quantity += 1;
-    else items.push({ ...item, quantity: 1 });
+    if (existing) existing.quantity += quantity;
+    else items.push({ ...item, quantity });
     return writeBrowserCart(items);
   },
   update(variantId: string, quantity: number) {
