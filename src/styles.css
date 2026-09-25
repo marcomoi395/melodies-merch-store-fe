@@ -40,6 +40,9 @@ button:disabled {
 }
 
 .page-shell {
+  display: flex;
+  min-height: 100vh;
+  flex-direction: column;
   padding: 16px;
 }
 .site-header,
@@ -639,7 +642,7 @@ legend {
   line-height: 1.6;
 }
 .site-footer {
-  margin-top: 80px;
+  margin-top: auto;
   border-top: 1px solid var(--line);
   padding-top: 12px;
 }
