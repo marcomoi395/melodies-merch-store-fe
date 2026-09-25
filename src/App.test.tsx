@@ -9,6 +9,7 @@ afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
   vi.unstubAllGlobals();
+  vi.resetModules();
   window.history.replaceState({}, "", "/");
   localStorage.clear();
 });
@@ -57,4 +58,86 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
   expect(buyNow.disabled).toBe(true);
   await act(async () => { ([...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Vinyl")) as HTMLButtonElement).click(); });
   expect(buyNow.disabled).toBe(false);
+});
+
+it("keeps a guest item in the browser cart without redirecting after add", async () => {
+  window.history.replaceState({}, "", "/products/album-one");
+  window.scrollTo = vi.fn();
+  const product = {
+    id: "product-1", name: "Album One", slug: "album-one", shortDescription: null,
+    productType: "music", minPrice: 100000, maxPrice: 100000, mediaGallery: [], artists: [],
+    variants: [{ id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3, isPreorder: false, attributes: [] }], category: null,
+  };
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ statusCode: 200, message: "Product fetched", data: product }) }));
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => {
+    root?.render(<App />);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  const variantButton = [...container.querySelectorAll("button")].find((button) => button.textContent?.includes("Vinyl")) as HTMLButtonElement;
+  const addButton = [...container.querySelectorAll("button")].find((button) => button.textContent === "THÊM GIỎ") as HTMLButtonElement;
+  await act(async () => { variantButton.click(); });
+  await act(async () => { addButton.click(); });
+  expect(window.location.pathname).toBe("/products/album-one");
+  expect(container.textContent).toContain("Đã thêm vào giỏ hàng.");
+  await act(async () => { (container.querySelector('a[href="/cart"]') as HTMLAnchorElement).click(); });
+
+  expect(container.textContent).toContain("Album One");
+  expect(container.textContent).toContain("Vinyl");
+  expect(localStorage.getItem("melodies.cart")).toContain("variant-1");
+});
+
+it("loads the persisted cart on a direct cart URL", async () => {
+  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
+  window.history.replaceState({}, "", "/cart");
+  window.scrollTo = vi.fn();
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => {
+    root?.render(<App />);
+    await Promise.resolve();
+  });
+
+  expect(container.textContent).toContain("Album One");
+  expect(container.textContent).toContain("Vinyl");
+});
+
+it("refreshes an already-open cart when another tab adds an item", async () => {
+  window.history.replaceState({}, "", "/cart");
+  window.scrollTo = vi.fn();
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+
+  await act(async () => { root?.render(<App />); await Promise.resolve(); });
+  expect(container.textContent).toContain("Giỏ hàng đang trống.");
+
+  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
+  await act(async () => { window.dispatchEvent(new StorageEvent("storage", { key: "melodies.cart" })); });
+
+  expect(container.textContent).toContain("Album One");
+});
+
+it("refreshes the cart after same-tab storage changes", async () => {
+  window.history.replaceState({}, "", "/cart");
+  window.scrollTo = vi.fn();
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => { root?.render(<App />); await Promise.resolve(); });
+
+  localStorage.setItem("melodies.cart", JSON.stringify([{ product: { id: "product-1", name: "Album One", mediaGallery: [] }, variant: { id: "variant-1", name: "Vinyl", originalPrice: 120000, discountPercent: 20, stockQuantity: 3 }, quantity: 1 }]));
+  await act(async () => { window.dispatchEvent(new Event("focus")); });
+
+  expect(container.textContent).toContain("Album One");
 });
