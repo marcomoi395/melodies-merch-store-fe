@@ -296,7 +296,16 @@ function Catalog({
   const [products, setProducts] = useState<Product[] | null>(null);
   const [meta, setMeta] = useState<Meta | null>(null);
   const [artists, setArtists] = useState<Artist[]>([]);
+  const [artistPickerOpen, setArtistPickerOpen] = useState(false);
+  const [artistSearch, setArtistSearch] = useState("");
+  const [selectedArtistIds, setSelectedArtistIds] = useState(selectedArtists);
   const [error, setError] = useState("");
+  const visibleArtists = artists.filter((artist) =>
+    artist.stageName.toLowerCase().includes(artistSearch.toLowerCase()),
+  );
+  const selectedArtistNames = selectedArtistIds
+    .map((id) => artists.find((artist) => artist.id === id)?.stageName)
+    .filter(Boolean);
   const load = () => {
     setProducts(null);
     setError("");
@@ -309,6 +318,7 @@ function Catalog({
       .catch((reason) => setError(message(reason)));
   };
   useEffect(load, [search]);
+  useEffect(() => setSelectedArtistIds(selectedArtists), [search]);
   useEffect(() => {
     api
       .getPage<Artist[], Meta>("/artists?limit=100")
@@ -320,7 +330,7 @@ function Catalog({
       keyword,
       type,
       sort,
-      artistId: selectedArtists.join(","),
+      artistId: selectedArtistIds.join(","),
       price_min: query.get("price_min") ?? "",
       price_max: query.get("price_max") ?? "",
       stock_status: query.get("stock_status") ?? "",
@@ -356,7 +366,7 @@ function Catalog({
             const data = new FormData(event.currentTarget);
             apply({
               keyword: String(data.get("keyword") ?? ""),
-              artistId: data.getAll("artistId").join(","),
+              artistId: selectedArtistIds.join(","),
               price_min: String(data.get("price_min") ?? ""),
               price_max: String(data.get("price_max") ?? ""),
               stock_status: data.get("stock_status") ? "true" : "",
@@ -371,21 +381,52 @@ function Catalog({
               placeholder="Tên sản phẩm"
             />
           </label>
-          <label className="filter-artists">
-            NGHỆ SĨ
-            <select
-              name="artistId"
-              multiple
-              size={Math.min(4, Math.max(2, artists.length))}
-              defaultValue={selectedArtists}
-            >
-              {artists.map((artist) => (
-                <option key={artist.id} value={artist.id}>
-                  {artist.stageName}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="filter-artists">
+            <span className="filter-label">NGHỆ SĨ</span>
+            <div className="artist-picker">
+              <button
+                type="button"
+                className="artist-picker-trigger"
+                aria-expanded={artistPickerOpen}
+                aria-haspopup="listbox"
+                onClick={() => setArtistPickerOpen((open) => !open)}
+              >
+                {selectedArtistNames.length
+                  ? `${selectedArtistNames.length} nghệ sĩ đã chọn`
+                  : "Tất cả nghệ sĩ"}
+                <span aria-hidden="true">▾</span>
+              </button>
+              {artistPickerOpen && (
+                <div className="artist-picker-menu" role="listbox" aria-label="Danh sách nghệ sĩ">
+                  <input
+                    aria-label="Tìm nghệ sĩ"
+                    placeholder="Tìm nghệ sĩ"
+                    value={artistSearch}
+                    onChange={(event) => setArtistSearch(event.target.value)}
+                  />
+                  <div className="artist-picker-options">
+                    {visibleArtists.map((artist) => (
+                      <label className="artist-option" key={artist.id}>
+                        <input
+                          type="checkbox"
+                          checked={selectedArtistIds.includes(artist.id)}
+                          onChange={() =>
+                            setSelectedArtistIds((current) =>
+                              current.includes(artist.id)
+                                ? current.filter((id) => id !== artist.id)
+                                : [...current, artist.id],
+                            )
+                          }
+                        />
+                        <span>{artist.stageName}</span>
+                      </label>
+                    ))}
+                    {!visibleArtists.length && <Empty>Không tìm thấy nghệ sĩ.</Empty>}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           <label className="filter-price-min">
             GIÁ GỐC TỪ
             <input

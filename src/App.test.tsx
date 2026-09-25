@@ -58,8 +58,11 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
       json: async () => ({
         statusCode: 200,
         message: "Artists fetched",
-        data: [],
-        meta: { currentPage: 1, totalPages: 1, limit: 100, totalItems: 0 },
+        data: [
+          { id: "artist-1", stageName: "Billy Joel" },
+          { id: "artist-2", stageName: "Ella Fitzgerald" },
+        ],
+        meta: { currentPage: 1, totalPages: 1, limit: 100, totalItems: 2 },
       }),
     })
     .mockResolvedValueOnce({
@@ -85,6 +88,22 @@ it("shows filtered catalog results from the HTTP boundary", async () => {
 
   expect(container.textContent).toContain("Album One");
   expect(container.textContent).toContain("SALE");
+  await act(async () => {
+    (container.querySelector(".artist-picker-trigger") as HTMLButtonElement).click();
+  });
+  expect(container.textContent).toContain("Billy Joel");
+  const artistSearch = container.querySelector(
+    'input[aria-label="Tìm nghệ sĩ"]',
+  ) as HTMLInputElement;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value",
+    )?.set?.call(artistSearch, "Ella");
+    artistSearch.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(container.textContent).toContain("Ella Fitzgerald");
+  expect(container.textContent).not.toContain("Billy Joel");
   expect(fetchFn).toHaveBeenCalledWith(
     "http://localhost:3000/api/products?type=music",
     expect.objectContaining({ method: "GET" }),
