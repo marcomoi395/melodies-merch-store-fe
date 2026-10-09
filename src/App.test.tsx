@@ -12,6 +12,7 @@ afterEach(() => {
   vi.resetModules();
   window.history.replaceState({}, "", "/");
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 it("shows filtered catalog results from the HTTP boundary", async () => {
@@ -484,3 +485,177 @@ it("does not expose removed category and artist pages", async () => {
   expect(container.textContent).toContain("Không tìm thấy trang.");
   expect(container.textContent).not.toContain("DANH MỤC");
 });
+
+it.each(["COD", "MOMO"] as const)(
+  "submits the selected %s payment method",
+  async (method) => {
+    window.history.replaceState(
+      {},
+      "",
+      "/checkout?variant=variant-1&quantity=1",
+    );
+    window.scrollTo = vi.fn();
+    const redirect = vi.fn();
+    const realWindow = window;
+    vi.stubGlobal(
+      "window",
+      new Proxy(realWindow, {
+        get(target, key) {
+          if (key === "location")
+            return {
+              pathname: realWindow.location.pathname,
+              search: realWindow.location.search,
+              assign: redirect,
+            };
+          const value = Reflect.get(target, key, target);
+          return typeof value === "function" ? value.bind(target) : value;
+        },
+      }),
+    );
+    const preview = {
+      subtotal: 150000,
+      shippingFee: 0,
+      discountAmount: 0,
+      totalAmount: 150000,
+      appliedVoucher: null,
+      orderItems: [],
+    };
+    const fetchFn = vi.fn(async (url, _options: RequestInit) => ({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        data: String(url).endsWith("/preview")
+          ? preview
+          : {
+              ...preview,
+              id: "order",
+              fullName: "Guest",
+              phone: "0901234567",
+              shippingAddress: "123 Street",
+              status: "PENDING",
+              paymentMethod: method,
+              paymentId: "payment",
+              paymentUrl:
+                method === "MOMO"
+                  ? "https://test-payment.momo.vn/pay"
+                  : undefined,
+            },
+      }),
+    }));
+    vi.stubGlobal("fetch", fetchFn);
+    const { default: App } = await import("./App");
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<App />);
+    });
+    expect(
+      container.querySelectorAll('input[name="paymentMethod"]'),
+    ).toHaveLength(2);
+    const fields = [
+      ...container.querySelectorAll(
+        ".checkout-form input, .checkout-form textarea",
+      ),
+    ];
+    for (const [index, value] of [
+      "Guest",
+      "guest@example.com",
+      "0901234567",
+      "123 Street",
+    ].entries()) {
+      const field = fields[index] as HTMLInputElement | HTMLTextAreaElement;
+      const prototype =
+        field.tagName === "TEXTAREA"
+          ? HTMLTextAreaElement.prototype
+          : HTMLInputElement.prototype;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(
+          field,
+          value,
+        );
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+    }
+    await act(async () => {
+      (
+        container.querySelector(`input[value="${method}"]`) as HTMLInputElement
+      ).click();
+    });
+    await act(async () => {
+      [...container.querySelectorAll("button")]
+        .find((button) => button.textContent === "XEM TỔNG TIỀN")!
+        .click();
+    });
+    await act(async () => {
+      [...container.querySelectorAll("button")]
+        .find(
+          (button) =>
+            button.textContent ===
+            (method === "COD" ? "ĐẶT HÀNG COD" : "THANH TOÁN MOMO"),
+        )!
+        .click();
+    });
+    const call = fetchFn.mock.calls.find(([url]) =>
+      String(url).endsWith("/order"),
+    );
+    expect(call).toBeDefined();
+    expect(
+      JSON.parse((call![1] as RequestInit).body as string).paymentMethod,
+    ).toBe(method);
+    if (method === "MOMO")
+      expect(redirect).toHaveBeenCalledWith("https://test-payment.momo.vn/pay");
+    else expect(realWindow.location.pathname).toBe("/order/success");
+  },
+);
+
+it.each(["SUCCESS", "FAILED", "PENDING"])(
+  "shows verified %s status after returning from MoMo",
+  async (status) => {
+    const paymentId = "123e4567-e89b-42d3-a456-426614174000";
+    window.history.replaceState(
+      {},
+      "",
+      `/payment/result?payment=${paymentId}&resultCode=0`,
+    );
+    const fetchFn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        statusCode: 200,
+        data: {
+          paymentId,
+          orderId: "order-1",
+          status,
+          amount: 150000,
+          requiresReview: false,
+          paymentUrl: "https://test-payment.momo.vn/pay",
+        },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchFn);
+    const { default: App } = await import("./App");
+    const container = document.createElement("div");
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(<App />);
+    });
+    const expected =
+      status === "SUCCESS"
+        ? "THANH TOÁN THÀNH CÔNG"
+        : status === "FAILED"
+          ? "THANH TOÁN KHÔNG THÀNH CÔNG"
+          : "ĐANG XÁC NHẬN THANH TOÁN";
+    expect(container.querySelector("h1")?.textContent).toBe(expected);
+    expect(fetchFn).toHaveBeenCalledWith(
+      `http://localhost:3000/api/payment/momo/${paymentId}/status`,
+      expect.anything(),
+    );
+    if (status !== "PENDING")
+      expect(
+        container.querySelector('a[href="https://test-payment.momo.vn/pay"]'),
+      ).toBeNull();
+  },
+);

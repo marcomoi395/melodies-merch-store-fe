@@ -862,3 +862,19 @@ legend {
     flex-basis: 100%;
   }
 }
+
+.payment-options {
+  margin: 24px 0;
+  border: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+}
+.payment-options label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.payment-options input {
+  width: auto;
+  accent-color: var(--ink);
+}

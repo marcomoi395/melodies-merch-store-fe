@@ -66,6 +66,8 @@ type Order = Preview & {
   shippingAddress: string;
   status: string;
   paymentMethod: string;
+  paymentId?: string;
+  paymentUrl?: string | null;
   createdAt: string;
   trackingCode?: string | null;
 };
@@ -235,7 +237,7 @@ function Shell({
       {children}
       <footer className="site-footer">
         <span>© 2026 MELODIES</span>
-        <span>COD / VI-VN</span>
+        <span>COD / MOMO / VI-VN</span>
       </footer>
     </main>
   );
@@ -908,7 +910,7 @@ function CartPage({ navigate }: { navigate: (to: string) => void }) {
             className="button"
             onClick={() => navigate("/checkout?cart=1")}
           >
-            THANH TOÁN COD
+            THANH TOÁN
           </button>
         </>
       )}
@@ -973,6 +975,9 @@ function Checkout({
     note: "",
     appliedVoucher: "",
   });
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "MOMO">("COD");
+  const [submitting, setSubmitting] = useState(false);
+  const creating = useRef(false);
   const cartCheckout = params.get("cart") === "1";
   useEffect(() => {
     if (cartCheckout)
@@ -1027,6 +1032,10 @@ function Checkout({
       !form.phone.trim()
     )
       return setError("Hãy nhập họ tên, email hợp lệ và số điện thoại.");
+    if (creating.current) return;
+    creating.current = true;
+    setSubmitting(true);
+    setError("");
     try {
       const order = await api.post<Order>("/order", {
         fullName: form.fullName,
@@ -1035,17 +1044,38 @@ function Checkout({
         shippingAddress: form.shippingAddress,
         note: form.note || undefined,
         items: mergeOrderItems(items),
-        paymentMethod: "COD",
+        paymentMethod,
         ...(preview.appliedVoucher
           ? { appliedVoucher: preview.appliedVoucher }
           : {}),
       });
-      if (cartCheckout) browserCart.clear();
       sessionStorage.setItem("melodies.last-order", JSON.stringify(order));
-      navigate("/order/success");
+      if (paymentMethod === "MOMO") {
+        if (cartCheckout)
+          sessionStorage.setItem(
+            "melodies.payment-cart",
+            JSON.stringify({
+              paymentId: order.paymentId,
+              items: mergeOrderItems(items),
+            }),
+          );
+        if (order.paymentUrl) window.location.assign(order.paymentUrl);
+        else
+          navigate(
+            `/payment/result?payment=${encodeURIComponent(order.paymentId ?? "")}`,
+          );
+      } else {
+        if (cartCheckout) browserCart.clear();
+        navigate("/order/success");
+      }
     } catch (reason) {
       setPreview(null);
-      setError(`${message(reason)}. Vui lòng xem lại đơn hàng.`);
+      setError(reason instanceof ApiError && reason.statusCode === 503
+        ? message(reason)
+        : `${message(reason)}. Vui lòng xem lại đơn hàng.`);
+    } finally {
+      creating.current = false;
+      setSubmitting(false);
     }
   };
   if (loading) return <Empty>Đang chuẩn bị thanh toán...</Empty>;
@@ -1063,8 +1093,24 @@ function Checkout({
       <div>
         <h1>THANH TOÁN</h1>
         <p className="muted">
-          Mua hàng không cần đăng nhập. Chỉ nhận thanh toán khi giao hàng (COD).
+          Mua hàng không cần đăng nhập. Thanh toán khi giao hàng (COD) hoặc qua
+          ví MoMo.
         </p>
+        <fieldset className="payment-options" disabled={submitting}>
+          <legend>PHƯƠNG THỨC THANH TOÁN</legend>
+          {(["COD", "MOMO"] as const).map((method) => (
+            <label key={method}>
+              <input
+                type="radio"
+                name="paymentMethod"
+                value={method}
+                checked={paymentMethod === method}
+                onChange={() => setPaymentMethod(method)}
+              />
+              {method === "COD" ? "Thanh toán khi giao hàng (COD)" : "Ví MoMo"}
+            </label>
+          ))}
+        </fieldset>
         <div className="checkout-form">
           <label>
             HỌ VÀ TÊN
@@ -1124,8 +1170,12 @@ function Checkout({
         {error && <Notice error>{error}</Notice>}
         {preview && <Totals order={preview} />}
         {preview ? (
-          <button className="button" onClick={create}>
-            ĐẶT HÀNG COD
+          <button className="button" disabled={submitting} onClick={create}>
+            {submitting
+              ? "ĐANG TẠO ĐƠN..."
+              : paymentMethod === "COD"
+                ? "ĐẶT HÀNG COD"
+                : "THANH TOÁN MOMO"}
           </button>
         ) : (
           <button className="button" onClick={getPreview}>
@@ -1222,6 +1272,147 @@ function Tracking({ navigate }: { navigate: (to: string) => void }) {
   );
 }
 
+type PaymentStatus = {
+  paymentId: string;
+  orderId: string;
+  status: "PENDING" | "SUCCESS" | "FAILED";
+  amount: number;
+  requiresReview: boolean;
+  paymentUrl: string | null;
+};
+
+function PaymentResult({
+  navigate,
+  search,
+}: {
+  navigate: (to: string) => void;
+  search: string;
+}) {
+  const id = new URLSearchParams(search).get("payment");
+  const [payment, setPayment] = useState<PaymentStatus | null>(null);
+  const [error, setError] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [refresh, setRefresh] = useState(0);
+  useEffect(() => {
+    if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+      setError("Mã thanh toán không hợp lệ.");
+      return;
+    }
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    const check = async () => {
+      setChecking(true);
+      try {
+        const result = await api.get<PaymentStatus>(
+          `/payment/momo/${encodeURIComponent(id)}/status`,
+        );
+        if (!active) return;
+        setPayment(result);
+        setError("");
+        if (result.status === "SUCCESS") {
+          // Remove only this checkout's quantities; preserve additions made while away.
+          try {
+            const saved = JSON.parse(
+              sessionStorage.getItem("melodies.payment-cart") ?? "null",
+            );
+            if (saved?.paymentId === id && Array.isArray(saved.items)) {
+              for (const item of saved.items as OrderItemInput[]) {
+                const current = browserCart
+                  .read()
+                  .find((line) => line.variant.id === item.productVariantId);
+                if (current)
+                  browserCart.update(
+                    current.variant.id,
+                    current.quantity - item.quantity,
+                  );
+              }
+              sessionStorage.removeItem("melodies.payment-cart");
+            }
+          } catch {
+            /* A missing browser receipt does not change payment status. */
+          }
+        }
+        if (result.status === "PENDING")
+          timer = setTimeout(() => {
+            void check();
+          }, 5000);
+      } catch (reason) {
+        if (active) {
+          setError(message(reason));
+          if (!(reason instanceof ApiError && [400, 404].includes(reason.statusCode)))
+            timer = setTimeout(() => {
+              void check();
+            }, 5000);
+        }
+      } finally {
+        if (active) setChecking(false);
+      }
+    };
+    void check();
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [id, refresh]);
+  return (
+    <section className="receipt content-section">
+      <h1>
+        {payment?.status === "SUCCESS"
+          ? "THANH TOÁN THÀNH CÔNG"
+          : payment?.status === "FAILED"
+            ? "THANH TOÁN KHÔNG THÀNH CÔNG"
+            : "ĐANG XÁC NHẬN THANH TOÁN"}
+      </h1>
+      <div aria-live="polite">
+        {error && <Notice error>{error}</Notice>}
+        {payment && (
+          <p>
+            Mã đơn: <strong>{payment.orderId}</strong> /{" "}
+            {formatMoney(payment.amount)}
+          </p>
+        )}
+        {payment?.status === "SUCCESS" && (
+          <Notice>
+            {payment.requiresReview
+              ? "Đã nhận thanh toán. Đơn cần cửa hàng kiểm tra; vui lòng liên hệ với mã đơn trên."
+              : "MoMo đã xác nhận thanh toán. Cửa hàng đang xử lý đơn hàng."}
+          </Notice>
+        )}
+        {payment?.status === "FAILED" && (
+          <Notice error>
+            Thanh toán bị từ chối, đã hủy hoặc hết hạn. Đơn đã hủy; bạn có thể
+            đặt lại và chọn COD hoặc MoMo.
+          </Notice>
+        )}
+        {payment?.status === "PENDING" && (
+          <Notice>
+            Chưa có xác nhận từ MoMo. Đừng tạo đơn mới khi giao dịch đang xử lý.
+            Trang tự kiểm tra lại.
+          </Notice>
+        )}
+      </div>
+      {payment?.status === "PENDING" && payment.paymentUrl && (
+        <a className="button" href={payment.paymentUrl} rel="noreferrer">
+          TIẾP TỤC THANH TOÁN MOMO
+        </a>
+      )}{" "}
+      <button
+        className="button ghost"
+        disabled={checking}
+        onClick={() => setRefresh((value) => value + 1)}
+      >
+        KIỂM TRA LẠI
+      </button>{" "}
+      <Link navigate={navigate} to="/track" className="button ghost">
+        TRA CỨU ĐƠN
+      </Link>{" "}
+      <Link navigate={navigate} to="/" className="button">
+        TIẾP TỤC MUA
+      </Link>
+    </section>
+  );
+}
+
 function Receipt({ navigate }: { navigate: (to: string) => void }) {
   const [order] = useState<Order | null>(() => {
     try {
@@ -1241,6 +1432,8 @@ function Receipt({ navigate }: { navigate: (to: string) => void }) {
         </Link>
       </section>
     );
+  if (order.paymentMethod === "MOMO" && order.paymentId)
+    return <PaymentResult navigate={navigate} search={`?payment=${encodeURIComponent(order.paymentId)}`} />;
   return (
     <section className="receipt content-section">
       <p className="eyebrow">ĐẶT HÀNG THÀNH CÔNG</p>
@@ -1282,6 +1475,8 @@ function App() {
   else if (pathname === "/checkout")
     page = <Checkout navigate={navigate} search={search} />;
   else if (pathname === "/track") page = <Tracking navigate={navigate} />;
+  else if (pathname === "/payment/result")
+    page = <PaymentResult navigate={navigate} search={search} />;
   else if (pathname === "/order/success")
     page = <Receipt navigate={navigate} />;
   else

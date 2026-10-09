@@ -77,6 +77,8 @@ type Order = {
   totalAmount: number;
   appliedVoucher: string | null;
   paymentMethod: 'COD' | 'MOMO' | string;
+  paymentId?: string; // MoMo create only; opaque capability, keep private
+  paymentUrl?: string | null;
   shippingAddress: string;
   note: string | null;
   createdAt: string;
@@ -123,7 +125,10 @@ type Order = {
 | Order | GET | `/order` | bearer | - |
 | Order | GET | `/order/:id` | bearer | - |
 | Order | POST | `/order/preview` | none | - |
-| Order | POST | `/order` | optional bearer | - |
+| Order | POST | `/order` | none | - |
+| Payment | POST | `/payment/momo/ipn` | signed MoMo callback | - |
+| Payment | GET | `/payment/momo/return` | none | - |
+| Payment | GET | `/payment/momo/:id/status` | private payment UUID | - |
 | Order | PATCH | `/order/:id` | bearer | - |
 | Admin catalog | GET | `/admin/products` | bearer | `PRODUCT_VIEW` |
 | Admin catalog | GET | `/admin/products/:slug` | bearer | `PRODUCT_VIEW` |
@@ -417,7 +422,9 @@ type PreviewOrderInput = {
 - `shippingFee` is always `0`; no shipping-rate endpoint exists.
 - Voucher discount: `fixed` subtracts value; `percentage` subtracts percentage of subtotal; discount is capped at subtotal.
 - Order creation decrements stock atomically and increments voucher usage atomically.
-- No payment initiation/callback endpoint exists. `MOMO` is only stored as `paymentMethod`.
+- COD creates an unpaid order for payment on delivery. MOMO persists a payment attempt and creates a signed MoMo checkout; merchant credentials are backend-only.
+- MoMo requires an integer VND total between 1,000 and 50,000,000. Unconfigured MoMo returns `503` before reserving stock.
+- MoMo failure cancels the order and restores reserved stock/voucher usage once; a timeout remains pending for reconciliation.
 
 ### `POST /order/preview`
 
@@ -433,13 +440,21 @@ Auth: none. Request: `PreviewOrderInput`.
 
 ### `POST /order`
 
-Auth: optional bearer. Guest checkout is supported.
-
-- If bearer is valid, order stores `userId`; without bearer, order is a guest order.
+Auth: none. Checkout creates a guest order.
 - `201`, message `Order created successfully`, data `Order`.
 - Stock is rechecked inside the transaction; refresh preview on failure.
 - Customer cannot set order status.
 - Backend currently rechecks voucher active/usage during creation but does not recheck voucher date window in the transaction; frontend must still rely on preview and final error handling.
+
+### MoMo checkout and result
+
+- `POST /order` with `paymentMethod: "MOMO"` returns `paymentId` and `paymentUrl`. Navigate with `window.location.assign(paymentUrl)` when present; otherwise navigate to `/payment/result?payment={paymentId}`. Never create another order automatically after an uncertain response.
+- `POST /payment/momo/ipn`: public MoMo server callback. Verified signature/amount/request IDs; HTTP `204`, empty body. Customer frontend never calls this endpoint.
+- `GET /payment/momo/return?payment={paymentId}`: fixed `303` redirect to `CUSTOMER_APP_URL/payment/result?payment={paymentId}`. Browser result parameters cannot confirm payment.
+- `GET /payment/momo/{paymentId}/status`: public capability endpoint, `Cache-Control: no-store`. Returns `{ paymentId, orderId, status: "PENDING" | "SUCCESS" | "FAILED", amount, requiresReview, paymentUrl }`. Contains no customer PII. Keep the opaque payment UUID private.
+- The result page polls status; pending status queries MoMo at most once per five seconds per payment. Backend also reconciles oldest pending attempts every minute. MoMo not-found after uncertain create retries the same immutable order/request IDs.
+- Only verified `SUCCESS` confirms payment; ignore browser `resultCode`. `PENDING` must not show payment success. `FAILED` offers a new checkout, leaving cart intact. Late success after released stock sets `requiresReview: true`; staff review is needed before fulfillment.
+- Configure sandbox `MOMO_ENVIRONMENT`, `MOMO_PARTNER_CODE`, `MOMO_ACCESS_KEY`, `MOMO_SECRET_KEY`, public `API_URL` (including `/api`), and `CUSTOMER_APP_URL`. See backend `docs/momo-integration.md` for official sources and setup.
 
 ### `GET /order`
 
