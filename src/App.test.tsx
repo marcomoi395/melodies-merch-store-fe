@@ -9,10 +9,35 @@ afterEach(() => {
   act(() => root?.unmount());
   root = undefined;
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
   vi.resetModules();
   window.history.replaceState({}, "", "/");
   localStorage.clear();
   sessionStorage.clear();
+});
+
+it.each([
+  [true, "true", true],
+  [true, "false", false],
+  [false, "true", false],
+])("renders keyword HTML only in the enabled development lab (DEV=%s, flag=%s)", async (dev, flag, vulnerable) => {
+  const keyword = '<img src="x" onerror="alert(1)">';
+  window.history.replaceState({}, "", `/?keyword=${encodeURIComponent(keyword)}&page=1`);
+  window.scrollTo = vi.fn();
+  vi.stubEnv("DEV", dev);
+  vi.stubEnv("VITE_KEYWORD_XSS_DEMO", flag);
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ data: [], meta: { currentPage: 1, totalPages: 1 } }),
+  }));
+  const { default: App } = await import("./App");
+  const container = document.createElement("div");
+  root = createRoot(container);
+  await act(async () => root?.render(<App />));
+  const result = container.querySelector(".catalog-section > .muted");
+  expect(Boolean(result?.querySelector('img[onerror="alert(1)"]'))).toBe(vulnerable);
+  if (!vulnerable) expect(result?.textContent).toContain(keyword);
 });
 
 it("shows filtered catalog results from the HTTP boundary", async () => {

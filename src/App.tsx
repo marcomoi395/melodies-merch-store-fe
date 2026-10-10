@@ -430,6 +430,17 @@ function Catalog({
       </section>
       <section className="catalog-section">
         <h2>CATALOG</h2>
+        {keyword && (
+          <p className="muted">
+            Kết quả tìm kiếm:{" "}
+            {import.meta.env.DEV && import.meta.env.VITE_KEYWORD_XSS_DEMO === "true" ? (
+              // ponytail: local XSS lab only; render {keyword} as text to remove the HTML sink.
+              <span dangerouslySetInnerHTML={{ __html: keyword }} />
+            ) : (
+              <span>{keyword}</span>
+            )}
+          </p>
+        )}
         <form
           className="catalog-controls"
           onSubmit={(event) => {
