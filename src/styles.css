@@ -664,6 +664,20 @@ legend {
 }
 .receipt {
   width: min(100%, 580px);
+  overflow-wrap: anywhere;
+}
+.payment-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.payment-actions .button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  text-align: center;
 }
 .receipt > p {
   color: var(--muted);

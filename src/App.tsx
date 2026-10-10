@@ -237,7 +237,7 @@ function Shell({
       {children}
       <footer className="site-footer">
         <span>© 2026 MELODIES</span>
-        <span>COD / MOMO / VI-VN</span>
+        <span>COD / MOMO / STRIPE / VI-VN</span>
       </footer>
     </main>
   );
@@ -975,7 +975,7 @@ function Checkout({
     note: "",
     appliedVoucher: "",
   });
-  const [paymentMethod, setPaymentMethod] = useState<"COD" | "MOMO">("COD");
+  const [paymentMethod, setPaymentMethod] = useState<"COD" | "MOMO" | "STRIPE">("COD");
   const [submitting, setSubmitting] = useState(false);
   const creating = useRef(false);
   const cartCheckout = params.get("cart") === "1";
@@ -1050,7 +1050,7 @@ function Checkout({
           : {}),
       });
       sessionStorage.setItem("melodies.last-order", JSON.stringify(order));
-      if (paymentMethod === "MOMO") {
+      if (paymentMethod !== "COD") {
         if (cartCheckout)
           sessionStorage.setItem(
             "melodies.payment-cart",
@@ -1062,7 +1062,7 @@ function Checkout({
         if (order.paymentUrl) window.location.assign(order.paymentUrl);
         else
           navigate(
-            `/payment/result?payment=${encodeURIComponent(order.paymentId ?? "")}`,
+            `/payment/result?payment=${encodeURIComponent(order.paymentId ?? "")}&provider=${paymentMethod.toLowerCase()}`,
           );
       } else {
         if (cartCheckout) browserCart.clear();
@@ -1094,11 +1094,11 @@ function Checkout({
         <h1>THANH TOÁN</h1>
         <p className="muted">
           Mua hàng không cần đăng nhập. Thanh toán khi giao hàng (COD) hoặc qua
-          ví MoMo.
+          ví MoMo hoặc thẻ qua Stripe.
         </p>
         <fieldset className="payment-options" disabled={submitting}>
           <legend>PHƯƠNG THỨC THANH TOÁN</legend>
-          {(["COD", "MOMO"] as const).map((method) => (
+          {(["COD", "MOMO", "STRIPE"] as const).map((method) => (
             <label key={method}>
               <input
                 type="radio"
@@ -1107,7 +1107,7 @@ function Checkout({
                 checked={paymentMethod === method}
                 onChange={() => setPaymentMethod(method)}
               />
-              {method === "COD" ? "Thanh toán khi giao hàng (COD)" : "Ví MoMo"}
+              {method === "COD" ? "Thanh toán khi giao hàng (COD)" : method === "MOMO" ? "Ví MoMo" : "Thẻ qua Stripe (test)"}
             </label>
           ))}
         </fieldset>
@@ -1175,7 +1175,7 @@ function Checkout({
               ? "ĐANG TẠO ĐƠN..."
               : paymentMethod === "COD"
                 ? "ĐẶT HÀNG COD"
-                : "THANH TOÁN MOMO"}
+                : `THANH TOÁN ${paymentMethod}`}
           </button>
         ) : (
           <button className="button" onClick={getPreview}>
@@ -1288,7 +1288,10 @@ function PaymentResult({
   navigate: (to: string) => void;
   search: string;
 }) {
-  const id = new URLSearchParams(search).get("payment");
+  const params = new URLSearchParams(search);
+  const id = params.get("payment");
+  const provider = params.get("provider") === "stripe" ? "stripe" : "momo";
+  const providerName = provider === "stripe" ? "Stripe" : "MoMo";
   const [payment, setPayment] = useState<PaymentStatus | null>(null);
   const [error, setError] = useState("");
   const [checking, setChecking] = useState(false);
@@ -1304,7 +1307,7 @@ function PaymentResult({
       setChecking(true);
       try {
         const result = await api.get<PaymentStatus>(
-          `/payment/momo/${encodeURIComponent(id)}/status`,
+          `/payment/${provider}/${encodeURIComponent(id)}/status`,
         );
         if (!active) return;
         setPayment(result);
@@ -1353,7 +1356,7 @@ function PaymentResult({
       active = false;
       clearTimeout(timer);
     };
-  }, [id, refresh]);
+  }, [id, provider, refresh]);
   return (
     <section className="receipt content-section">
       <h1>
@@ -1375,40 +1378,42 @@ function PaymentResult({
           <Notice>
             {payment.requiresReview
               ? "Đã nhận thanh toán. Đơn cần cửa hàng kiểm tra; vui lòng liên hệ với mã đơn trên."
-              : "MoMo đã xác nhận thanh toán. Cửa hàng đang xử lý đơn hàng."}
+              : `${providerName} đã xác nhận thanh toán. Cửa hàng đang xử lý đơn hàng.`}
           </Notice>
         )}
         {payment?.status === "FAILED" && (
           <Notice error>
             Thanh toán bị từ chối, đã hủy hoặc hết hạn. Đơn đã hủy; bạn có thể
-            đặt lại và chọn COD hoặc MoMo.
+            đặt lại và chọn COD, MoMo hoặc Stripe.
           </Notice>
         )}
         {payment?.status === "PENDING" && (
           <Notice>
-            Chưa có xác nhận từ MoMo. Đừng tạo đơn mới khi giao dịch đang xử lý.
+            Chưa có xác nhận từ {providerName}. Đừng tạo đơn mới khi giao dịch đang xử lý.
             Trang tự kiểm tra lại.
           </Notice>
         )}
       </div>
-      {payment?.status === "PENDING" && payment.paymentUrl && (
-        <a className="button" href={payment.paymentUrl} rel="noreferrer">
-          TIẾP TỤC THANH TOÁN MOMO
-        </a>
-      )}{" "}
-      <button
-        className="button ghost"
-        disabled={checking}
-        onClick={() => setRefresh((value) => value + 1)}
-      >
-        KIỂM TRA LẠI
-      </button>{" "}
-      <Link navigate={navigate} to="/track" className="button ghost">
-        TRA CỨU ĐƠN
-      </Link>{" "}
-      <Link navigate={navigate} to="/" className="button">
-        TIẾP TỤC MUA
-      </Link>
+      <div className="payment-actions">
+        {payment?.status === "PENDING" && payment.paymentUrl && (
+          <a className="button" href={payment.paymentUrl} rel="noreferrer">
+            TIẾP TỤC THANH TOÁN {providerName.toUpperCase()}
+          </a>
+        )}
+        <button
+          className="button ghost"
+          disabled={checking}
+          onClick={() => setRefresh((value) => value + 1)}
+        >
+          KIỂM TRA LẠI
+        </button>
+        <Link navigate={navigate} to="/track" className="button ghost">
+          TRA CỨU ĐƠN
+        </Link>
+        <Link navigate={navigate} to="/" className="button">
+          TIẾP TỤC MUA
+        </Link>
+      </div>
     </section>
   );
 }
@@ -1432,8 +1437,8 @@ function Receipt({ navigate }: { navigate: (to: string) => void }) {
         </Link>
       </section>
     );
-  if (order.paymentMethod === "MOMO" && order.paymentId)
-    return <PaymentResult navigate={navigate} search={`?payment=${encodeURIComponent(order.paymentId)}`} />;
+  if (order.paymentMethod !== "COD" && order.paymentId)
+    return <PaymentResult navigate={navigate} search={`?payment=${encodeURIComponent(order.paymentId)}&provider=${order.paymentMethod.toLowerCase()}`} />;
   return (
     <section className="receipt content-section">
       <p className="eyebrow">ĐẶT HÀNG THÀNH CÔNG</p>

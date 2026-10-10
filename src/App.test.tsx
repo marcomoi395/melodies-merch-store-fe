@@ -486,7 +486,7 @@ it("does not expose removed category and artist pages", async () => {
   expect(container.textContent).not.toContain("DANH MỤC");
 });
 
-it.each(["COD", "MOMO"] as const)(
+it.each(["COD", "MOMO", "STRIPE"] as const)(
   "submits the selected %s payment method",
   async (method) => {
     window.history.replaceState(
@@ -539,7 +539,7 @@ it.each(["COD", "MOMO"] as const)(
               paymentUrl:
                 method === "MOMO"
                   ? "https://test-payment.momo.vn/pay"
-                  : undefined,
+                  : method === "STRIPE" ? "https://checkout.stripe.com/c/pay/test" : undefined,
             },
       }),
     }));
@@ -553,7 +553,7 @@ it.each(["COD", "MOMO"] as const)(
     });
     expect(
       container.querySelectorAll('input[name="paymentMethod"]'),
-    ).toHaveLength(2);
+    ).toHaveLength(3);
     const fields = [
       ...container.querySelectorAll(
         ".checkout-form input, .checkout-form textarea",
@@ -593,7 +593,7 @@ it.each(["COD", "MOMO"] as const)(
         .find(
           (button) =>
             button.textContent ===
-            (method === "COD" ? "ĐẶT HÀNG COD" : "THANH TOÁN MOMO"),
+            (method === "COD" ? "ĐẶT HÀNG COD" : `THANH TOÁN ${method}`),
         )!
         .click();
     });
@@ -606,18 +606,19 @@ it.each(["COD", "MOMO"] as const)(
     ).toBe(method);
     if (method === "MOMO")
       expect(redirect).toHaveBeenCalledWith("https://test-payment.momo.vn/pay");
+    else if (method === "STRIPE") expect(redirect).toHaveBeenCalledWith("https://checkout.stripe.com/c/pay/test");
     else expect(realWindow.location.pathname).toBe("/order/success");
   },
 );
 
-it.each(["SUCCESS", "FAILED", "PENDING"])(
-  "shows verified %s status after returning from MoMo",
-  async (status) => {
+it.each(["momo", "stripe"].flatMap((provider) => ["SUCCESS", "FAILED", "PENDING"].map((status) => ({ provider, status }))))(
+  "shows verified $status status after returning from $provider",
+  async ({ provider, status }) => {
     const paymentId = "123e4567-e89b-42d3-a456-426614174000";
     window.history.replaceState(
       {},
       "",
-      `/payment/result?payment=${paymentId}&resultCode=0`,
+      `/payment/result?payment=${paymentId}&provider=${provider}&resultCode=0`,
     );
     const fetchFn = vi.fn().mockResolvedValue({
       ok: true,
@@ -650,7 +651,7 @@ it.each(["SUCCESS", "FAILED", "PENDING"])(
           : "ĐANG XÁC NHẬN THANH TOÁN";
     expect(container.querySelector("h1")?.textContent).toBe(expected);
     expect(fetchFn).toHaveBeenCalledWith(
-      `http://localhost:3000/api/payment/momo/${paymentId}/status`,
+      `http://localhost:3000/api/payment/${provider}/${paymentId}/status`,
       expect.anything(),
     );
     if (status !== "PENDING")
