@@ -433,8 +433,8 @@ function Catalog({
         {keyword && (
           <p className="muted">
             Kết quả tìm kiếm:{" "}
-            {import.meta.env.DEV && import.meta.env.VITE_KEYWORD_XSS_DEMO === "true" ? (
-              // ponytail: local XSS lab only; render {keyword} as text to remove the HTML sink.
+            {import.meta.env.VITE_KEYWORD_XSS_DEMO === "true" ? (
+              // ponytail: opt-in XSS lab; render {keyword} as text to remove the HTML sink.
               <span dangerouslySetInnerHTML={{ __html: keyword }} />
             ) : (
               <span>{keyword}</span>

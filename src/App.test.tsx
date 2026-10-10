@@ -19,8 +19,10 @@ afterEach(() => {
 it.each([
   [true, "true", true],
   [true, "false", false],
-  [false, "true", false],
-])("renders keyword HTML only in the enabled development lab (DEV=%s, flag=%s)", async (dev, flag, vulnerable) => {
+  [false, "true", true],
+  [false, "false", false],
+  [false, undefined, false],
+])("renders keyword HTML only with the explicit demo flag (DEV=%s, flag=%s)", async (dev, flag, vulnerable) => {
   const keyword = '<img src="x" onerror="alert(1)">';
   window.history.replaceState({}, "", `/?keyword=${encodeURIComponent(keyword)}&page=1`);
   window.scrollTo = vi.fn();
