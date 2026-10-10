@@ -216,7 +216,7 @@ it("keeps a guest item in the browser cart without redirecting after add", async
   expect(JSON.parse(localStorage.getItem("melodies.cart") ?? "[]")[0].quantity).toBe(4);
 });
 
-it("tracks a guest order by email without showing private order fields", async () => {
+it("tracks a guest order with customer details and order items", async () => {
   window.history.replaceState({}, "", "/track");
   window.scrollTo = vi.fn();
   const fetchFn = vi.fn().mockResolvedValue({
@@ -236,6 +236,14 @@ it("tracks a guest order by email without showing private order fields", async (
           shippingFee: 0,
           discountAmount: 0,
           totalAmount: 100,
+          fullName: "Nguyễn An",
+          email: "guest@example.com",
+          phone: "0901234567",
+          shippingAddress: { street: "123 Test Street", city: "Hồ Chí Minh" },
+          note: "Gọi trước khi giao",
+          currency: "VND",
+          appliedVoucher: null,
+          orderItems: [{ id: "item-1", productName: "Album One", variantName: "Vinyl", quantity: 2, totalLinePrice: 100 }],
         },
       ],
     }),
@@ -265,7 +273,9 @@ it("tracks a guest order by email without showing private order fields", async (
     }),
   );
   expect(container.textContent).toContain("order-1");
-  expect(container.textContent).not.toContain("guest@example.com");
+  for (const value of ["Nguyễn An", "guest@example.com", "0901234567", "123 Test Street, Hồ Chí Minh", "Gọi trước khi giao", "Album One / Vinyl x2", "TẠM TÍNH", "GIAO HÀNG"]) {
+    expect(container.textContent).toContain(value);
+  }
 });
 
 it("loads the persisted cart on a direct cart URL", async () => {

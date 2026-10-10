@@ -739,7 +739,8 @@ legend {
 }
 .tracking-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  overflow-wrap: anywhere;
   gap: 24px;
   border: 1px solid var(--line);
   border-radius: 8px;

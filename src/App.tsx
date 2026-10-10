@@ -71,17 +71,13 @@ type Order = Preview & {
   createdAt: string;
   trackingCode?: string | null;
 };
-type TrackedOrder = {
-  id: string;
-  createdAt: string;
-  status: string;
-  trackingCode: string | null;
-  paymentMethod: string;
-  subtotal: number;
-  shippingFee: number;
-  discountAmount: number;
-  totalAmount: number;
+type TrackedOrder = Omit<Order, "shippingAddress"> & {
+  shippingAddress: string | Record<string, unknown> | null;
+  note: string | null;
+  currency: string | null;
+  updatedAt: string | null;
 };
+
 type Artist = {
   id: string;
   stageName: string;
@@ -1246,18 +1242,25 @@ function Tracking({ navigate }: { navigate: (to: string) => void }) {
               <div>
                 <span className="eyebrow">{order.status}</span>
                 <h2>{order.id}</h2>
-                <p>{new Date(order.createdAt).toLocaleString("vi-VN")}</p>
+                <p>Ngày đặt: {new Date(order.createdAt).toLocaleString("vi-VN")}</p>
+                {order.updatedAt && <p>Cập nhật: {new Date(order.updatedAt).toLocaleString("vi-VN")}</p>}
+                <p>Họ tên: {order.fullName || "—"}</p>
+                <p>Email: {order.email || "—"}</p>
+                <p>Số điện thoại: {order.phone || "—"}</p>
+                <p>Địa chỉ: {typeof order.shippingAddress === "string"
+                  ? order.shippingAddress || "—"
+                  : Object.values(order.shippingAddress ?? {}).filter((value) => typeof value === "string" || typeof value === "number").join(", ") || "—"}</p>
+                {order.note && <p>Ghi chú: {order.note}</p>}
               </div>
               <div>
-                <p>
-                  TỔNG <strong>{formatMoney(order.totalAmount)}</strong>
-                </p>
                 <p>
                   {order.trackingCode
                     ? `Mã vận đơn: ${order.trackingCode}`
                     : "Chưa có mã vận đơn"}
                 </p>
-                <p>{order.paymentMethod}</p>
+                <p>Thanh toán: {order.paymentMethod}</p>
+                <p>Tiền tệ: {order.currency || "VND"}</p>
+                <Totals order={order} />
               </div>
             </article>
           ))}
